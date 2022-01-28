@@ -1,0 +1,422 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+<br> 
+<center><img src="http://i.imgur.com/sSaOozN.png" width="500"></center>
+
+
+## Course:  COMPUTATIONAL THINKING FOR GOVERNANCE ANALYTICS
+
+### Prof. José Manuel Magallanes, PhD 
+* Visiting Professor of Computational Policy at Evans School of Public Policy and Governance, and eScience Institute Senior Data Science Fellow, University of Washington.
+* Professor of Government and Political Methodology, Pontificia Universidad Católica del Perú. 
+
+
+_____
+<a id='part1'></a>
+
+# Dimensionality Reduction in R
+
+As the name implies, we want to _reduce_ a set of variables into one (or two) that summarizes them. In this session we will practice two basic techniques:
+
+* Cluster analysis.
+
+* Factor analysis.
+
+## Cluster Analysis
+
+Simply speaking, this technique will organize the cases (rows) into a small set of groups, based on the information (the columns) available for each case. 
+
+Let me bring back the data we prepared in Python:
+
+```{r collecting, eval=TRUE}
+link='https://github.com/EvansDataScience/CTforGA_integrating/raw/main/allDataFull_OK.RDS'
+# a RDS file from the web needs:
+myFile=url(link)
+
+# reading in data:
+fromPy=readRDS(file = myFile)
+
+# reset indexes to R format:
+row.names(fromPy)=NULL
+
+# check data types
+str(fromPy)
+```
+
+Let's comment on two types of clustering approaches.
+
+1. Partitioning: You will request a particular number of clusters to the algorithm. The algorithm will put every case in one of those clusters. Outliers will affect output.
+
+![Source: https://en.wikipedia.org/wiki/Cluster_analysis](https://upload.wikimedia.org/wikipedia/commons/c/c8/Cluster-2.svg)
+
+2. Hierarchizing: You will ask the algorithm to find all possible ways cases can be clustered, individually and in subgroups following a tree-construction/deconstruction approach. You should determine the right amount of clusters.Outliers will affect output.
+
+![Source: https://quantdare.com/hierarchical-clustering/](https://quantdare.com/wp-content/uploads/2016/06/AggloDivHierarClustering-800x389.png)
+
+
+_____
+
+## Preparing data:
+
+### I. Data to cluster
+
+**a.** Subset your data (recommended)
+
+```{r subsetting, eval=TRUE}
+selection=c("Country","Electoralprocessandpluralism", "Functioningofgovernment","Politicalparticipation","Politicalculture", "Civilliberties")
+
+dataToCluster=fromPy[,selection]
+```
+
+**b.** Set labels as row index
+
+```{r rownames, eval=TRUE}
+row.names(dataToCluster)=dataToCluster$Country
+dataToCluster$Country=NULL
+```
+
+
+**c.** Decide if data needs to be transformed:
+```{r boxplotS, eval=TRUE}
+boxplot(dataToCluster,horizontal = T, las=2,cex.axis=0.4)
+```
+
+The data values have a similar range, then you do not need to transform the data. Possible alternatives could have been:
+
+```{r transforming, eval=TRUE}
+#### standardizing
+#as.data.frame(scale(dataToCluster))
+
+### or smoothing
+#log(dataToCluster)
+```
+
+
+
+### II. Compute the DISTANCE MATRIX:
+
+
+**d.** Set random seed:
+```{r clusterSeed, eval=TRUE}
+set.seed(999) # this is for replicability of results
+```
+
+
+**e.** Decide distance method and compute distance matrix:
+```{r cluster_DistanceMatrix, eval=TRUE}
+library(cluster)
+dataToCluster_DM=daisy(x=dataToCluster, metric = "gower")
+```
+
+
+
+## Compute Clusters
+
+### 1. Apply function: you need to indicate a priori the amount of clusters required.
+
+```{r clusterComputeALL, eval=TRUE}
+
+NumberOfClusterDesired=5
+
+# Partitioning technique
+res.pam = pam(x=dataToCluster_DM,
+              k = NumberOfClusterDesired,
+              cluster.only = F)
+
+# Hierarchical technique- agglomerative approach
+
+library(factoextra)
+res.agnes= hcut(dataToCluster_DM, 
+                k = NumberOfClusterDesired,
+                isdiss=TRUE,
+                hc_func='agnes',
+                hc_method = "ward.D2")
+
+# Hierarchical technique- divisive approach
+res.diana= hcut(dataToCluster_DM, 
+                k = NumberOfClusterDesired,
+                isdiss=TRUE,
+                hc_func='diana',
+                hc_method = "ward.D2")
+```
+
+
+### 2. Clustering results. 
+
+**2.1 ** Add results to original data frame:
+
+```{r clusterSave_toDF, eval=TRUE}
+fromPy$pam=as.factor(res.pam$clustering)
+fromPy$agn=as.factor(res.agnes$cluster)
+fromPy$dia=as.factor(res.diana$cluster)
+```
+
+**2.2 ** Verify ordinality in clusters
+
+```{r clusPamCheck, eval=TRUE}
+aggregate(data=fromPy,
+          Overallscore~pam,
+          FUN=mean)
+```
+```{r clusAgnCheck, eval=TRUE}
+aggregate(data=fromPy,
+          Overallscore~agn,
+          FUN=mean)
+```
+```{r clusDiaCheck, eval=TRUE}
+aggregate(data=fromPy,
+          Overallscore~dia,
+          FUN=mean)
+```
+
+You could recode these values like this:
+
+```{r recoding, eval=TRUE}
+library(dplyr)
+
+fromPy$pam=dplyr::recode_factor(fromPy$pam, 
+                  `1` = '5',`2`='4',`3`='3',`4`='2',`5`='1')
+fromPy$agn=dplyr::recode_factor(fromPy$agn, 
+                  `1` = '5',`2`='4',`3`='3',`4`='2',`5`='1')
+fromPy$dia=dplyr::recode_factor(fromPy$dia, 
+                  `1` = '5',`2`='4',`3`='3',`4`='2',`5`='1')
+```
+
+### 3. Evaluate Results.
+
+**3.1** Plot silhouettes
+
+```{r clust_silhou_PAM, eval=TRUE}
+# from factoextra
+fviz_silhouette(res.pam)
+```
+
+```{r clust_silhou_AGNES, eval=TRUE}
+
+fviz_silhouette(res.agnes)
+```
+
+```{r clust_silhou_DIANA, eval=TRUE}
+library(factoextra)
+fviz_silhouette(res.diana)
+```
+
+**3.2** Detecting cases badly clustered
+
+a. Save individual silhouettes:
+
+Previos results have saved important information:
+
+```{r infoSIL, eval=TRUE}
+head(data.frame(res.pam$silinfo$widths),20)
+```
+
+```{r negativeSILs, eval=TRUE}
+pamEval=data.frame(res.pam$silinfo$widths)
+agnEval=data.frame(res.agnes$silinfo$widths)
+diaEval=data.frame(res.diana$silinfo$widths)
+
+pamPoor=rownames(pamEval[pamEval$sil_width<0,])
+agnPoor=rownames(agnEval[agnEval$sil_width<0,])
+diaPoor=rownames(diaEval[diaEval$sil_width<0,])
+```
+
+
+
+
+# How to compare clustering?
+
+* Prepare a bidimensional map using distances:
+
+```{r cmd_Map, eval=TRUE}
+projectedData = cmdscale(dataToCluster_DM, k=2)
+#
+# save coordinates to original data frame:
+fromPy$dim1 = projectedData[,1]
+fromPy$dim2 = projectedData[,2]
+```
+
+
+* See the "map":
+
+```{r plotCmdmap, eval=TRUE}
+base= ggplot(data=fromPy,
+             aes(x=dim1, y=dim2,
+                 label=Country)) 
+base + geom_text(size=2)
+```
+
+
+
+* Plot results from PAM:
+```{r plotpam, eval=TRUE}
+pamPlot=base + labs(title = "PAM") + geom_point(size=2,
+                                              aes(color=pam),
+                                              show.legend = T)  
+```
+
+* Plot results from Hierarchical AGNES:
+```{r plotagn, eval=TRUE}
+agnPlot=base + labs(title = "AGNES") + geom_point(size=2,
+                                              aes(color=agn),
+                                              show.legend = T) 
+```
+
+
+* Plot results from Hierarchical DIANA:
+```{r plotdia, eval=TRUE}
+diaPlot=base + labs(title = "DIANA") + geom_point(size=2,
+                                              aes(color=dia),
+                                              show.legend = T) 
+```
+
+
+Compare visually:
+
+```{r plotcompare, eval=TRUE}
+library(ggpubr)
+
+ggarrange(pamPlot, agnPlot, diaPlot,ncol = 3,common.legend = T)
+```
+
+Annotating outliers:
+
+```{r plotdb_annot2, eval=TRUE}
+library(ggrepel)
+LABELpam=ifelse(fromPy$Country%in%pamPoor,fromPy$Country,"")
+LABELdia=ifelse(fromPy$Country%in%diaPoor,fromPy$Country,"")
+LABELagn=ifelse(fromPy$Country%in%agnPoor,fromPy$Country,"")
+pamPlot + geom_text_repel(aes(label=LABELpam))
+```
+
+
+```{r}
+diaPlot + geom_text_repel(aes(label=LABELdia))
+```
+```{r}
+agnPlot + geom_text_repel(aes(label=LABELagn))
+```
+
+* The Dendogram (for hierarchical approaches)
+
+
+```{r clusagnREPORTdendo, eval=TRUE}
+fviz_dend(res.agnes,k=NumberOfClusterDesired, cex = 0.45, horiz = T,main = "AGNES approach")
+```
+
+
+```{r clusdiaREPORTdendo, eval=TRUE}
+fviz_dend(res.diana,k=NumberOfClusterDesired, cex = 0.45, horiz = T,main = "DIANA approach")
+```
+
+
+# <font color="red">FACTOR ANALYSIS</font>
+
+Simply speaking, this technique tries to express in one (or few) dimension(s) the behavior of several others. FA assumes that the several input variables have 'something' in common, there is something **latent** that the set of input variables represent. 
+
+
+Let me subset our original data frame:
+
+```{r, eval=TRUE}
+selection=c("Country","Electoralprocessandpluralism", "Functioningofgovernment","Politicalparticipation","Politicalculture", "Civilliberties")
+
+dataForFA=fromPy[,selection]
+```
+
+
+Our *dataForFA* data frame has the data to compute the one index we need. I will show the technique called **confirmatory factor analysis**:
+
+```{r, eval=TRUE}
+names(dataForFA)
+```
+
+
+```{r, eval=TRUE}
+library(lavaan)
+
+model='
+democra=~Electoralprocessandpluralism + Functioningofgovernment + Politicalparticipation + Politicalculture + Civilliberties
+'
+
+fit<-cfa(model, data = dataForFA,std.lv=TRUE)
+indexCFA=lavPredict(fit)
+```
+
+
+The index computed is not in a range from 0 to 10:
+```{r, eval=TRUE}
+indexCFA[1:10]
+```
+
+
+We force its return to "0 to 10":
+
+```{r, eval=TRUE}
+library(scales)
+indexCFANorm=rescale(as.vector(indexCFA), 
+                     to = c(0, 10))
+indexCFANorm[1:10]
+```
+
+So, this is our index:
+```{r, eval=TRUE}
+fromPy$demo_FA=indexCFANorm
+```
+
+Let me compare the new index with the original score:
+
+```{r, eval=TRUE}
+base=ggplot(data=fromPy,
+            aes(x=demo_FA,y=Overallscore))
+base+geom_point()
+```
+
+Let me see some evaluation measures of our index for democracy:
+
+```{r, eval=TRUE}
+evalCFA1=parameterEstimates(fit, standardized =TRUE)
+```
+
+* Loadings
+```{r, eval=TRUE}
+evalCFA1[evalCFA1$op=="=~",c('rhs','std.all','pvalue')]
+```
+
+* Some coefficients:
+
+```{r, eval=TRUE}
+evalCFA2=as.list(fitMeasures(fit))
+```
+
+* You want p.value of Chi-Square greater than 0.05:
+
+```{r, eval=TRUE}
+evalCFA2[c("chisq", "df", "pvalue")] 
+```
+
+* You want the Tucker-Lewis > 0.9:
+
+```{r, eval=TRUE}
+evalCFA2$tli # > 0.90
+```
+
+* You want RMSEA < 0.05:
+
+```{r, eval=TRUE}
+evalCFA2[c( 'rmsea.ci.lower','rmsea','rmsea.ci.upper')] 
+```
+
+You can see how it looks:
+
+```{r, eval=TRUE}
+library(semPlot)
+semPaths(fit, what='std', nCharNodes=0, sizeMan=12,
+         edge.label.cex=1.5, fade=T,residuals = F)
+
+```
+
+
+
