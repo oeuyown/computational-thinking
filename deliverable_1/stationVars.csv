@@ -1,26 +1,26 @@
-Station,Opened,Weekday ridership
-Angle Lake,"September 24, 2016",3194
-Beacon Hill,"July 18, 2009",2675
-Capitol Hill,"March 19, 2016",7116
-Columbia City,"July 18, 2009",2358
-Commerce Street/S 11th St,"September 15, 2011",1051
-Convention Center/S 15th St,"August 23, 2003",564
-International District/Chinatown,"July 18, 2009",5233
-Mount Baker,"July 18, 2009",2237
-Northgate,"October 2, 2021",—
-Othello,"July 18, 2009",2307
-Pioneer Square,"July 18, 2009",4015
-Rainier Beach,"July 18, 2009",1858
-Roosevelt,"October 2, 2021",—
-SeaTac/Airport,"December 19, 2009",4777
-SODO,"July 18, 2009",1959
-S 25th St,"August 23, 2003",878
-Stadium,"July 18, 2009",1135
-Tacoma Dome,"August 23, 2003",2110
-Theater District/S 9th St,"August 23, 2003",995
-Tukwila International Boulevard,"July 18, 2009",2603
-U District,"October 2, 2021",—
-Union Station/S 19th St,"August 23, 2003",1433
-University of Washington,"March 19, 2016",9340
-University Street,"July 18, 2009",5284
-Westlake,"July 18, 2009",10096
+Station,Opened,Weekday ridership,Opened Year
+Angle Lake,"September 24, 2016",3194,2016
+Beacon Hill,"July 18, 2009",2675,2009
+Capitol Hill,"March 19, 2016",7116,2016
+Columbia City,"July 18, 2009",2358,2009
+Commerce Street/S 11th St,"September 15, 2011",1051,2011
+Convention Center/S 15th St,"August 23, 2003",564,2003
+International District/Chinatown,"July 18, 2009",5233,2009
+Mount Baker,"July 18, 2009",2237,2009
+Northgate,"October 2, 2021",—,2021
+Othello,"July 18, 2009",2307,2009
+Pioneer Square,"July 18, 2009",4015,2009
+Rainier Beach,"July 18, 2009",1858,2009
+Roosevelt,"October 2, 2021",—,2021
+SeaTac/Airport,"December 19, 2009",4777,2009
+SODO,"July 18, 2009",1959,2009
+S 25th St,"August 23, 2003",878,2003
+Stadium,"July 18, 2009",1135,2009
+Tacoma Dome,"August 23, 2003",2110,2003
+Theater District/S 9th St,"August 23, 2003",995,2003
+Tukwila International Boulevard,"July 18, 2009",2603,2009
+U District,"October 2, 2021",—,2021
+Union Station/S 19th St,"August 23, 2003",1433,2003
+University of Washington,"March 19, 2016",9340,2016
+University Street,"July 18, 2009",5284,2009
+Westlake,"July 18, 2009",10096,2009
