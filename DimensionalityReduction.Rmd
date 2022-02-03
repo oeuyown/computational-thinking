@@ -32,7 +32,8 @@ Simply speaking, this technique will organize the cases (rows) into a small set 
 Let me bring back the data we prepared in Python:
 
 ```{r collecting, eval=TRUE}
-link='https://github.com/EvansDataScience/CTforGA_integrating/raw/main/allDataFull_OK.RDS'
+link='https://github.com/oeuyown/computational-thinking/raw/main/deliverable_1/finalMerge_OK.RDS'
+
 # a RDS file from the web needs:
 myFile=url(link)
 
@@ -45,6 +46,29 @@ row.names(fromPy)=NULL
 # check data types
 str(fromPy)
 ```
+```{r}
+# convert weekday ridership to integer
+fromPy['HouseholdMedianIncome'] <- lapply(fromPy['Household Median Income'], as.numeric)
+
+
+str(fromPy)
+```
+```{r}
+library(tidyverse)
+library(dplyr)
+
+fromPy = arrange(fromPy, Station, 'Opened Year', Year)
+```
+
+```{r}
+fromPy %>%
+  ggplot(aes(x=Year, y=HouseholdMedianIncome)) +
+         geom_line(aes(color = Station), size = 1)
+```
+```{r}
+fromPyTest <- fromPy[!(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2016" ) | !(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2018""),]
+```
+
 
 Let's comment on two types of clustering approaches.
 
@@ -66,32 +90,38 @@ _____
 **a.** Subset your data (recommended)
 
 ```{r subsetting, eval=TRUE}
-selection=c("Country","Electoralprocessandpluralism", "Functioningofgovernment","Politicalparticipation","Politicalculture", "Civilliberties")
+selectionRace=c("Station", "White alone","Black or African American alone", "Hispanic or Latino")
+selectionRiderships=c("Station", "Weekday ridership")
+selectionIncome=c("Station", "Household Median Income")
 
-dataToCluster=fromPy[,selection]
+dataToClusterRace=fromPy[,selectionRace]
 ```
 
 **b.** Set labels as row index
 
 ```{r rownames, eval=TRUE}
-row.names(dataToCluster)=dataToCluster$Country
-dataToCluster$Country=NULL
+row.names(dataToClusterRace)=dataToClusterRace$Station
+dataToClusterRace$Station=NULL
 ```
 
 
 **c.** Decide if data needs to be transformed:
 ```{r boxplotS, eval=TRUE}
-boxplot(dataToCluster,horizontal = T, las=2,cex.axis=0.4)
+boxplot(dataToClusterRace,horizontal = T, las=2,cex.axis=0.4)
 ```
 
 The data values have a similar range, then you do not need to transform the data. Possible alternatives could have been:
 
 ```{r transforming, eval=TRUE}
 #### standardizing
-#as.data.frame(scale(dataToCluster))
+dataToClusterStandard = as.data.frame(scale(dataToCluster))
 
 ### or smoothing
 #log(dataToCluster)
+```
+
+```{r}
+boxplot(dataToClusterStandard,horizontal = T, las=2,cex.axis=0.4)
 ```
 
 
@@ -225,7 +255,7 @@ diaPoor=rownames(diaEval[diaEval$sil_width<0,])
 ```
 
 
-
+## Deliver II only up to here
 
 # How to compare clustering?
 
