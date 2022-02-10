@@ -48,22 +48,16 @@ str(fromPy)
 ```
 ```{r}
 # convert weekday ridership to integer
-fromPy['HouseholdMedianIncome'] <- lapply(fromPy['Household Median Income'], as.numeric)
+# fromPy['HouseholdMedianIncome'] <- lapply(fromPy['Household Median Income'], as.numeric)
 
 
-str(fromPy)
+# str(fromPy)
 ```
 ```{r}
 library(tidyverse)
 library(dplyr)
 
-fromPy = arrange(fromPy, Station, 'Opened Year', Year)
-```
-
-```{r}
-fromPy %>%
-  ggplot(aes(x=Year, y=HouseholdMedianIncome)) +
-         geom_line(aes(color = Station), size = 1)
+fromPy = arrange(fromPy, Station)
 ```
 
 ```{r}
@@ -73,7 +67,7 @@ fromPy %>%
 ```
 
 ```{r}
-fromPyTest <- fromPy[!(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2016" ) | !(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2018""),]
+# fromPyTest <- fromPy[!(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2016" ) | !(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2018""),]
 ```
 
 
@@ -97,24 +91,22 @@ _____
 **a.** Subset your data (recommended)
 
 ```{r subsetting, eval=TRUE}
-selectionRace=c("Station", "White alone","Black or African American alone", "Hispanic or Latino")
-selectionRiderships=c("Station", "Weekday ridership")
-selectionIncome=c("Station", "Household Median Income")
+selection=c("CompositePercentile", "RacePercentile","SocioeconomicPercentile")
 
-dataToClusterRace=fromPy[,selectionRace]
+dataToCluster=fromPy[,selection]
 ```
 
 **b.** Set labels as row index
 
 ```{r rownames, eval=TRUE}
-dataToClusterRace$Station=NULL
-row.names(dataToClusterRace)=dataToClusterRace$Station
+dataToCluster$Station=NULL
+row.names(dataToCluster)=dataToCluster$Station
 ```
 
 
 **c.** Decide if data needs to be transformed:
 ```{r boxplotS, eval=TRUE}
-boxplot(dataToClusterRace,horizontal = T, las=2,cex.axis=0.4)
+boxplot(dataToCluster,horizontal = T, las=2,cex.axis=0.4)
 ```
 
 The data values have a similar range, then you do not need to transform the data. Possible alternatives could have been:
@@ -145,7 +137,7 @@ set.seed(999) # this is for replicability of results
 **e.** Decide distance method and compute distance matrix:
 ```{r cluster_DistanceMatrix, eval=TRUE}
 library(cluster)
-dataToCluster_DM=daisy(x=dataToClusterStandard, metric = "gower")
+dataToCluster_DM=daisy(x=dataToCluster, metric = "gower")
 ```
 
 
@@ -156,7 +148,7 @@ dataToCluster_DM=daisy(x=dataToClusterStandard, metric = "gower")
 
 ```{r clusterComputeALL, eval=TRUE}
 
-NumberOfClusterDesired=5
+NumberOfClusterDesired=3
 
 # Partitioning technique
 res.pam = pam(x=dataToCluster_DM,
@@ -195,18 +187,18 @@ fromPy$dia=as.factor(res.diana$cluster)
 
 ```{r clusPamCheck, eval=TRUE}
 aggregate(data=fromPy,
-          HouseholdMedianIncome~pam,
+          CompositePercentile~pam,
           FUN=mean)
 ```
 ```{r clusAgnCheck, eval=TRUE}
 aggregate(data=fromPy,
-          HouseholdMedianIncome~agn,
+          CompositePercentile~agn,
           FUN=mean)
 ```
 
 ```{r clusDiaCheck, eval=TRUE}
 aggregate(data=fromPy,
-          HouseholdMedianIncome~dia,
+          CompositePercentile~dia,
           FUN=mean)
 ```
 
