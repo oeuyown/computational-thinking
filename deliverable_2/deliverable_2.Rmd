@@ -31,20 +31,28 @@ str(fromPy)
 ```
 
 ```{r, eval=TRUE}
-idhLink="https://github.com/EvansDataScience/CTforGA_BasicModeling/raw/main/hdi2019.csv"
-idhdata=read.csv(idhLink)
+covidLink="https://raw.githubusercontent.com/oeuyown/computational-thinking/main/deliverable_2/covidcases_bytract.csv"
+covidData=read.csv(covidLink)
+```
+
+```{r}
+covidData %>% 
+  colnames()
 ```
 
 ```{r, eval=TRUE}
-demoidh=merge(fromPy,idhdata,by.x = "Country",by.y = "country")
-
+demoCovid=merge(fromPy,covidData,by.x = "GEOID10",by.y = "ï..Location_Name")
+demoCovid
+```
+```{r}
+demoCovid = na.omit(demoCovid)
 ```
 
 
 Verifying data structure:
 
 ```{r, eval=TRUE}
-str(fromPy,width = 70,strict.width='cut')
+str(demoCovid,width = 70,strict.width='cut')
 ```
 
 
@@ -63,11 +71,11 @@ Generally speaking, we use regression when we have a continuous outcome o depend
 Prepare your hypotheses:
 ```{r, eval=TRUE}
 # hypothesis 1: hdi increases as we have more civil liberties:
-hypo1=formula(hdi~ Civilliberties)
+hypo1=formula(COMPOSITE_PERCENTILE ~ Confirmed_Case_Rate)
 
 # hypothesis 2: hdi increases as Civil liberties and Political participation advance:
 
-hypo2=formula(hdi~ Civilliberties + Politicalparticipation)
+hypo2=formula(COMPOSITE_PERCENTILE~ Confirmed_Case_Rate + Hospitalization_Rate + Death_Rate)
 ```
 
 
@@ -77,11 +85,11 @@ hypo2=formula(hdi~ Civilliberties + Politicalparticipation)
 #
 # results
 gauss1=glm(hypo1,
-           data = demoidh,
+           data = demoCovid,
            family = 'gaussian')
 
 gauss2=glm(hypo2,
-           data = demoidh,
+           data = demoCovid,
            family = 'gaussian')
 ```
 
@@ -188,13 +196,14 @@ library(caret)
 
 set.seed(123)
 
-selection = createDataPartition(demoidh$hdi,
+selection = createDataPartition(demoCovid$COMPOSITE_PERCENTILE,
                                 p = 0.75,
                                 list = FALSE)
 #
-trainGauss = demoidh[ selection, ]
+trainGauss = demoCovid[ selection, ]
+
 #
-testGauss  = demoidh[-selection, ]
+testGauss  = demoCovid[-selection, ]
 ```
 
 2. Regress with train data
