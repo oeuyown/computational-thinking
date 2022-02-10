@@ -1,0 +1,395 @@
+<br> 
+<center><img src="http://i.imgur.com/sSaOozN.png" width="500"></center>
+
+
+## Course:  COMPUTATIONAL THINKING FOR GOVERNANCE ANALYTICS
+
+### Prof. José Manuel Magallanes, PhD 
+* Visiting Professor of Computational Policy at Evans School of Public Policy and Governance, and eScience Institute Senior Data Science Fellow, University of Washington.
+* Professor of Government and Political Methodology, Pontificia Universidad Católica del Perú. 
+
+
+_____
+<a id='part1'></a>
+
+# Basic Modeling in R
+
+
+Collect the data about democracy that we prepared in Python:
+
+```{r, eval=TRUE}
+link='https://raw.githubusercontent.com/oeuyown/computational-thinking/main/deliverable_1/data/Racial_and_Social_Equity_Composite_Index.csv'
+
+# read in data
+fromPy = read.csv(link)
+
+# reset indexes to R format:
+row.names(fromPy)=NULL
+
+# check data types
+str(fromPy)
+```
+
+```{r, eval=TRUE}
+idhLink="https://github.com/EvansDataScience/CTforGA_BasicModeling/raw/main/hdi2019.csv"
+idhdata=read.csv(idhLink)
+```
+
+```{r, eval=TRUE}
+demoidh=merge(fromPy,idhdata,by.x = "Country",by.y = "country")
+
+```
+
+
+Verifying data structure:
+
+```{r, eval=TRUE}
+str(fromPy,width = 70,strict.width='cut')
+```
+
+
+
+
+# <font color="red">R for Regression</font>
+
+## Continuous outcome 
+
+Generally speaking, we use regression when we have a continuous outcome o dependent variable, and a set of independent variables of different type. 
+
+### * __EXPLANATORY APPROACH__
+
+1. State hypotheses:
+
+Prepare your hypotheses:
+```{r, eval=TRUE}
+# hypothesis 1: hdi increases as we have more civil liberties:
+hypo1=formula(hdi~ Civilliberties)
+
+# hypothesis 2: hdi increases as Civil liberties and Political participation advance:
+
+hypo2=formula(hdi~ Civilliberties + Politicalparticipation)
+```
+
+
+2. Compute regression models:
+
+```{r, eval=TRUE}
+#
+# results
+gauss1=glm(hypo1,
+           data = demoidh,
+           family = 'gaussian')
+
+gauss2=glm(hypo2,
+           data = demoidh,
+           family = 'gaussian')
+```
+
+3. See results:
+
+* First Hypothesis
+
+```{r, eval=TRUE}
+summary(gauss1)
+```
+
+* Second Hypothesis
+```{r, eval=TRUE}
+summary(gauss2)
+```
+
+4. Search for _better_ model:
+
+```{r, eval=TRUE}
+anova(gauss1,gauss2,test="Chisq")
+```
+
+Model for the second hypothesis is chosen. You can get the RSquared if needed:
+
+```{r, eval=TRUE}
+library(rsq)
+rsq(gauss2,adj=T)
+```
+
+5. Verify the situation of chosen model:
+
+5.1. Linearity between dependent variable and predictors is assumed, then these dots should follow a linear and horizontal trend:
+```{r, eval=TRUE}
+plot(gauss2,1)
+```
+The linear relationship does not hold that well.
+
+5.2. Normality of residuals is assumed:
+
+Visual exploration:
+```{r, eval=TRUE}
+plot(gauss2,2)
+```
+
+Mathematical exploration:
+```{r, eval=TRUE}
+# The data is normal if the p-value is above 0.05
+shapiro.test(gauss2$residuals)
+```
+
+5.3. Homoscedasticity is assumed, so you need to check if residuals are spread equally along the ranges of predictors:
+
+Visual exploration:
+
+```{r, eval=TRUE}
+plot(gauss2, 3)
+```
+
+Mathematical exploration:
+```{r, eval=TRUE}
+library(lmtest)
+#pvalue<0.05 you cannot assume Homoscedasticity
+bptest(gauss2) 
+```
+
+5.4. We assume that there is no colinearity, that is, that the predictors are not correlated.
+
+
+```{r, eval=TRUE}
+library(car)
+vif(gauss2) # lower than 5 is desirable
+```
+
+5.5. Analize the effect of atypical values. Determine if outliers (points that are far from the rest, but still in the trend) or high-leverage points (far from the trend but close to the rest) are influential:
+
+Visual exploration:
+```{r, eval=TRUE}
+plot(gauss2,5)
+```
+
+Querying:
+```{r, eval=TRUE}
+gaussInf=as.data.frame(influence.measures(gauss2)$is.inf)
+gaussInf[gaussInf$cook.d,]
+```
+
+
+6. Finally, a nice summary plot of your work:
+
+```{r, eval=TRUE}
+library(sjPlot)
+
+plot_models(gauss2,vline.color = "grey")
+```
+
+
+* __PREDICTIVE APPROACH__
+
+
+1. Split the data set:
+
+```{r, eval=TRUE}
+library(caret)
+
+set.seed(123)
+
+selection = createDataPartition(demoidh$hdi,
+                                p = 0.75,
+                                list = FALSE)
+#
+trainGauss = demoidh[ selection, ]
+#
+testGauss  = demoidh[-selection, ]
+```
+
+2. Regress with train data
+
+Let's use cross validation, applying the regression to five samples from the training data set:
+```{r, eval=TRUE}
+ctrl = trainControl(method = 'cv',number = 5)
+
+gauss2CV = train(hypo2,
+                 data = trainGauss, 
+                 method = 'glm',
+                 trControl = ctrl)
+
+gauss2CV
+
+```
+Just checking the Rsquared above tells us that it is not a good model for predicting.
+
+3. Evaluate performance
+
+
+```{r, eval=TRUE}
+
+predictedVal<-predict(gauss2CV,testGauss)
+
+postResample(obs = testGauss$hdi,
+             pred=predictedVal)
+```
+From the information above, you do noy a better prediction: the Rsquared from _postResample_ is below 0.5.
+
+
+## Binary outcome 
+
+In this situation you have binary dependent variable, which we do not currently have:
+
+```{r, eval=TRUE}
+demoidh$HDIdico=ifelse(demoidh$hdi>median(demoidh$hdi,
+                                       na.rm = T),
+                     1,0)
+```
+
+Now we have it. 
+
+### * __EXPLANATORY APPROACH__
+
+1. State hypothesis:
+
+Let's use the same ones:
+
+```{r, eval=TRUE}
+hypoDico1=formula(HDIdico~ Civilliberties)
+hypoDico2=formula(HDIdico~ Civilliberties + Politicalparticipation)
+```
+
+2. Reformat
+
+```{r, eval=TRUE}
+demoidh$HDIdico=factor(demoidh$HDIdico)
+```
+
+
+6. Compute regression models:
+
+```{r, eval=TRUE}
+Logi1=glm(hypoDico1,data = demoidh,
+          family = "binomial")
+Logi2=glm(hypoDico2,data = demoidh,
+          family = "binomial")
+```
+
+7. See results:
+
+* First Hypothesis:
+```{r, eval=TRUE}
+summary(Logi1)
+```
+* Second Hypothesis:
+
+```{r, eval=TRUE}
+summary(Logi2)
+```
+
+8. Search for better model:
+```{r, eval=TRUE}
+lrtest(Logi1,Logi2)
+```
+
+You do not have much of an improvement in the second case, but I will keep it.
+
+9. Verify the situation of chosen model
+
+9.1. Linearity assumption (Box-Tidwell test)
+
+```{r, eval=TRUE}
+DataRegLogis=demoidh
+DataRegLogis$civilTEST=demoidh$Civilliberties*log(demoidh$Civilliberties)
+DataRegLogis$particTEST=demoidh$Politicalparticipation*log(demoidh$Politicalparticipation)
+
+DicoTest=formula(HDIdico~ Civilliberties + Politicalparticipation + civilTEST + particTEST)
+
+summary(glm(DicoTest,data=DataRegLogis,family = binomial))
+
+```
+
+
+
+9.2. We assume that there is no colinearity, that is, that the predictors are not correlated.
+
+```{r, eval=TRUE}
+vif(Logi2)
+```
+
+9.3 Analize the effect of atypical values. Determine if outliers (points that are far from the rest, but still in the trend) or high-leverage points (far from the trend but close to the rest) are influential:
+
+Visual exploration:
+
+```{r, eval=TRUE}
+plot(Logi2,5)
+```
+
+10. Finally, a nice summary plot of your work by computing the marginal effects:
+
+```{r, eval=TRUE}
+library(margins)
+(modelChosen = margins(Logi2))
+```
+
+```{r, eval=TRUE}
+(margins=summary(modelChosen))
+```
+
+
+```{r, eval=TRUE}
+
+base= ggplot(margins,aes(x=factor, y=AME)) + geom_point()
+plot2 = base + theme(axis.text.x = element_text(angle = 80,
+                                              size = 6,
+                                              hjust = 1))
+plot2    
+```
+```{r, eval=TRUE}
+plot2 +  geom_errorbar(aes(ymin=lower, ymax=upper))
+```
+
+### * __PREDICTIVE APPROACH__
+
+
+1. Split the data set:
+```{r, eval=TRUE}
+set.seed(123)
+
+selection = createDataPartition(demoidh$HDIdico,
+                                p = 0.75,
+                                list = FALSE)
+trainLogi = demoidh[selection, ]
+testLogi  = demoidh[-selection, ]
+```
+
+2. Regress with train data
+
+Let’s use cross validation, applying the regression to five samples from the training data set:
+```{r, eval=TRUE}
+set.seed(123)
+ctrl = trainControl(method = 'cv',number = 5)
+
+Logis2CV = train(hypoDico2,
+                 data = trainLogi, 
+                 method = 'glm',
+                 family="binomial",
+                 trControl = ctrl)
+```
+
+3. See results:
+
+```{r, eval=TRUE}
+Logis2CV
+```
+
+3. Evaluate performance
+
+3.1 Get predictions on test data
+```{r, eval=TRUE}
+
+predictions = predict(Logis2CV,
+                      newdata=testLogi,
+                      type='raw')
+```
+
+3.2 Assess performance 
+```{r, eval=TRUE}
+confusionMatrix(data=predictions,
+                reference=testLogi$HDIdico,
+                positive = "1")
+```
+
+Here is some help for you to interpret the [result](https://docs.google.com/presentation/d/e/2PACX-1vRyFvA5U2HXC3CGBeKEr209_KLjjdeo8FoKT6BxMsjLNOJwx7YDUmGEpDq1pzfGO7Zizuk5rogUNPgj/pub?start=false&loop=false&delayms=3000).
+
+

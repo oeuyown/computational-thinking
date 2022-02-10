@@ -1,21 +1,8 @@
 ---
-title: "R Notebook"
+title: "Deliverable II"
+author: "Oeuyown Kim"
 output: html_notebook
 ---
-
-<br> 
-<center><img src="http://i.imgur.com/sSaOozN.png" width="500"></center>
-
-
-## Course:  COMPUTATIONAL THINKING FOR GOVERNANCE ANALYTICS
-
-### Prof. José Manuel Magallanes, PhD 
-* Visiting Professor of Computational Policy at Evans School of Public Policy and Governance, and eScience Institute Senior Data Science Fellow, University of Washington.
-* Professor of Government and Political Methodology, Pontificia Universidad Católica del Perú. 
-
-
-_____
-<a id='part1'></a>
 
 # Dimensionality Reduction in R
 
@@ -32,13 +19,10 @@ Simply speaking, this technique will organize the cases (rows) into a small set 
 Let me bring back the data we prepared in Python:
 
 ```{r collecting, eval=TRUE}
-link='https://github.com/oeuyown/computational-thinking/raw/main/deliverable_1/finalMerge_OK.RDS'
+link='https://raw.githubusercontent.com/oeuyown/computational-thinking/main/deliverable_1/data/Racial_and_Social_Equity_Composite_Index.csv'
 
-# a RDS file from the web needs:
-myFile=url(link)
-
-# reading in data:
-fromPy=readRDS(file = myFile)
+# read in data
+fromPy = read.csv(link)
 
 # reset indexes to R format:
 row.names(fromPy)=NULL
@@ -47,27 +31,14 @@ row.names(fromPy)=NULL
 str(fromPy)
 ```
 ```{r}
-# convert weekday ridership to integer
-# fromPy['HouseholdMedianIncome'] <- lapply(fromPy['Household Median Income'], as.numeric)
-
-
-# str(fromPy)
+fromPy = na.omit(fromPy)
 ```
+
 ```{r}
 library(tidyverse)
 library(dplyr)
 
-fromPy = arrange(fromPy, Station)
-```
-
-```{r}
-fromPy %>%
-  pull(`Opened Year`) %>%
-  unique()
-```
-
-```{r}
-# fromPyTest <- fromPy[!(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2016" ) | !(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2018""),]
+fromPy = arrange(fromPy, GEOID10)
 ```
 
 
@@ -91,7 +62,7 @@ _____
 **a.** Subset your data (recommended)
 
 ```{r subsetting, eval=TRUE}
-selection=c("CompositePercentile", "RacePercentile","SocioeconomicPercentile")
+selection=c("GEOID10","COMPOSITE_PERCENTILE", "RACE_ELL_ORIGINS_PERCENTILE","SOCIOECONOMIC_PERCENTILE","HEALTH_PERCENTILE")
 
 dataToCluster=fromPy[,selection]
 ```
@@ -99,8 +70,8 @@ dataToCluster=fromPy[,selection]
 **b.** Set labels as row index
 
 ```{r rownames, eval=TRUE}
-dataToCluster$Station=NULL
-row.names(dataToCluster)=dataToCluster$Station
+dataToCluster$GEOID10=NULL
+row.names(dataToCluster)=dataToCluster$GEOID10
 ```
 
 
@@ -108,21 +79,6 @@ row.names(dataToCluster)=dataToCluster$Station
 ```{r boxplotS, eval=TRUE}
 boxplot(dataToCluster,horizontal = T, las=2,cex.axis=0.4)
 ```
-
-The data values have a similar range, then you do not need to transform the data. Possible alternatives could have been:
-
-```{r transforming, eval=TRUE}
-#### standardizing
-dataToClusterStandard = as.data.frame(scale(dataToCluster))
-
-### or smoothing
-#log(dataToCluster)
-```
-
-```{r}
-boxplot(dataToClusterStandard,horizontal = T, las=2,cex.axis=0.4)
-```
-
 
 
 ### II. Compute the DISTANCE MATRIX:
@@ -148,7 +104,7 @@ dataToCluster_DM=daisy(x=dataToCluster, metric = "gower")
 
 ```{r clusterComputeALL, eval=TRUE}
 
-NumberOfClusterDesired=3
+NumberOfClusterDesired=4
 
 # Partitioning technique
 res.pam = pam(x=dataToCluster_DM,
@@ -187,18 +143,18 @@ fromPy$dia=as.factor(res.diana$cluster)
 
 ```{r clusPamCheck, eval=TRUE}
 aggregate(data=fromPy,
-          CompositePercentile~pam,
+          COMPOSITE_PERCENTILE~pam,
           FUN=mean)
 ```
 ```{r clusAgnCheck, eval=TRUE}
 aggregate(data=fromPy,
-          CompositePercentile~agn,
+          COMPOSITE_PERCENTILE~agn,
           FUN=mean)
 ```
 
 ```{r clusDiaCheck, eval=TRUE}
 aggregate(data=fromPy,
-          CompositePercentile~dia,
+          COMPOSITE_PERCENTILE~dia,
           FUN=mean)
 ```
 
@@ -276,7 +232,7 @@ fromPy$dim2 = projectedData[,2]
 ```{r plotCmdmap, eval=TRUE}
 base= ggplot(data=fromPy,
              aes(x=dim1, y=dim2,
-                 label=Country)) 
+                 label=GEOID10)) 
 base + geom_text(size=2)
 ```
 
@@ -287,6 +243,7 @@ base + geom_text(size=2)
 pamPlot=base + labs(title = "PAM") + geom_point(size=2,
                                               aes(color=pam),
                                               show.legend = T)  
+pamPlot
 ```
 
 * Plot results from Hierarchical AGNES:
@@ -294,6 +251,7 @@ pamPlot=base + labs(title = "PAM") + geom_point(size=2,
 agnPlot=base + labs(title = "AGNES") + geom_point(size=2,
                                               aes(color=agn),
                                               show.legend = T) 
+agnPlot
 ```
 
 
@@ -302,6 +260,7 @@ agnPlot=base + labs(title = "AGNES") + geom_point(size=2,
 diaPlot=base + labs(title = "DIANA") + geom_point(size=2,
                                               aes(color=dia),
                                               show.legend = T) 
+diaPlot
 ```
 
 
@@ -317,9 +276,9 @@ Annotating outliers:
 
 ```{r plotdb_annot2, eval=TRUE}
 library(ggrepel)
-LABELpam=ifelse(fromPy$Country%in%pamPoor,fromPy$Country,"")
-LABELdia=ifelse(fromPy$Country%in%diaPoor,fromPy$Country,"")
-LABELagn=ifelse(fromPy$Country%in%agnPoor,fromPy$Country,"")
+LABELpam=ifelse(fromPy$GEOID10%in%pamPoor,fromPy$GEOID10,"")
+LABELdia=ifelse(fromPy$GEOID10%in%diaPoor,fromPy$GEOID10,"")
+LABELagn=ifelse(fromPy$GEOID10%in%agnPoor,fromPy$GEOID10,"")
 pamPlot + geom_text_repel(aes(label=LABELpam))
 ```
 
@@ -327,6 +286,7 @@ pamPlot + geom_text_repel(aes(label=LABELpam))
 ```{r}
 diaPlot + geom_text_repel(aes(label=LABELdia))
 ```
+
 ```{r}
 agnPlot + geom_text_repel(aes(label=LABELagn))
 ```
@@ -352,7 +312,7 @@ Simply speaking, this technique tries to express in one (or few) dimension(s) th
 Let me subset our original data frame:
 
 ```{r, eval=TRUE}
-selection=c("Country","Electoralprocessandpluralism", "Functioningofgovernment","Politicalparticipation","Politicalculture", "Civilliberties")
+selection=c("GEOID10","COMPOSITE_PERCENTILE", "RACE_ELL_ORIGINS_PERCENTILE","SOCIOECONOMIC_PERCENTILE","HEALTH_PERCENTILE")
 
 dataForFA=fromPy[,selection]
 ```
@@ -368,10 +328,8 @@ names(dataForFA)
 ```{r, eval=TRUE}
 library(lavaan)
 
-model='
-democra=~Electoralprocessandpluralism + Functioningofgovernment + Politicalparticipation + Politicalculture + Civilliberties
-'
-
+model='equity=~RACE_ELL_ORIGINS_PERCENTILE + SOCIOECONOMIC_PERCENTILE + HEALTH_PERCENTILE'
+  
 fit<-cfa(model, data = dataForFA,std.lv=TRUE)
 indexCFA=lavPredict(fit)
 ```
@@ -401,7 +359,7 @@ Let me compare the new index with the original score:
 
 ```{r, eval=TRUE}
 base=ggplot(data=fromPy,
-            aes(x=demo_FA,y=Overallscore))
+            aes(x=demo_FA,y=COMPOSITE_PERCENTILE))
 base+geom_point()
 ```
 
