@@ -65,6 +65,13 @@ fromPy %>%
   ggplot(aes(x=Year, y=HouseholdMedianIncome)) +
          geom_line(aes(color = Station), size = 1)
 ```
+
+```{r}
+fromPy %>%
+  pull(`Opened Year`) %>%
+  unique()
+```
+
 ```{r}
 fromPyTest <- fromPy[!(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2016" ) | !(fromPy$Station == "Angle Lake Station") & (fromPy$Year = "2018""),]
 ```
@@ -100,8 +107,8 @@ dataToClusterRace=fromPy[,selectionRace]
 **b.** Set labels as row index
 
 ```{r rownames, eval=TRUE}
-row.names(dataToClusterRace)=dataToClusterRace$Station
 dataToClusterRace$Station=NULL
+row.names(dataToClusterRace)=dataToClusterRace$Station
 ```
 
 
@@ -138,7 +145,7 @@ set.seed(999) # this is for replicability of results
 **e.** Decide distance method and compute distance matrix:
 ```{r cluster_DistanceMatrix, eval=TRUE}
 library(cluster)
-dataToCluster_DM=daisy(x=dataToCluster, metric = "gower")
+dataToCluster_DM=daisy(x=dataToClusterStandard, metric = "gower")
 ```
 
 
@@ -188,17 +195,18 @@ fromPy$dia=as.factor(res.diana$cluster)
 
 ```{r clusPamCheck, eval=TRUE}
 aggregate(data=fromPy,
-          Overallscore~pam,
+          HouseholdMedianIncome~pam,
           FUN=mean)
 ```
 ```{r clusAgnCheck, eval=TRUE}
 aggregate(data=fromPy,
-          Overallscore~agn,
+          HouseholdMedianIncome~agn,
           FUN=mean)
 ```
+
 ```{r clusDiaCheck, eval=TRUE}
 aggregate(data=fromPy,
-          Overallscore~dia,
+          HouseholdMedianIncome~dia,
           FUN=mean)
 ```
 
@@ -231,6 +239,7 @@ fviz_silhouette(res.agnes)
 
 ```{r clust_silhou_DIANA, eval=TRUE}
 library(factoextra)
+library(ggplot2)
 fviz_silhouette(res.diana)
 ```
 
