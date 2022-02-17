@@ -1,53 +1,392 @@
-<br> 
-<center><img src="http://i.imgur.com/sSaOozN.png" width="500"></center>
+---
+title: "Deliverable II"
+author: "Oeuyown Kim"
+date: "February 16, 2022"
+output: html_document
+---
 
+This analysis uses data from the Race and Social Equity (RSE) Index from the City of Seattle and Covid-19 case data from King County to explore the latent concept of being disadvantaged. The disadvantage measure will be used to analyze how tracts with higher disadvantage scores were impacted by Covid-19.
 
-## Course:  COMPUTATIONAL THINKING FOR GOVERNANCE ANALYTICS
+# Cluster Analysis
 
-### Prof. José Manuel Magallanes, PhD 
-* Visiting Professor of Computational Policy at Evans School of Public Policy and Governance, and eScience Institute Senior Data Science Fellow, University of Washington.
-* Professor of Government and Political Methodology, Pontificia Universidad Católica del Perú. 
+## Prepare Data
 
+```{r libraries, message=FALSE}
+# load libraries
+library(tidyverse)
+library(dplyr)
+```
 
-_____
-<a id='part1'></a>
-
-# Basic Modeling in R
-
-
-Collect the data about democracy that we prepared in Python:
-
-```{r, eval=TRUE}
+**Read in data from the Race and Social Equity Index from the City of Seattle:**
+```{r prepRSE}
 link='https://raw.githubusercontent.com/oeuyown/computational-thinking/main/deliverable_1/data/Racial_and_Social_Equity_Composite_Index.csv'
 
 # read in data
-fromPy = read.csv(link)
+rseIndex = read.csv(link)
 
 # reset indexes to R format:
-row.names(fromPy)=NULL
+row.names(rseIndex)=NULL
 
-# check data types
-str(fromPy)
+# omit NA values
+rseIndex = na.omit(rseIndex)
+
+# sort columns by GEOID
+rseIndex = arrange(rseIndex, GEOID10)
 ```
+
+### I. Data to Cluster
+
+**a. Subset the data **
+
+```{r subsetting}
+selection=c("GEOID10","COMPOSITE_PERCENTILE", "RACE_ELL_ORIGINS_PERCENTILE","SOCIOECONOMIC_PERCENTILE","HEALTH_PERCENTILE")
+
+dataToCluster=rseIndex[,selection]
+```
+
+**b. Set labels as row index **
+
+```{r rowNames, eval=TRUE}
+dataToCluster$GEOID10=NULL
+row.names(dataToCluster)=dataToCluster$GEOID10
+```
+
+
+**c. Decide if data needs to be transformed  **
+
+The data does not need to be transformed because they all fall within a similar range (they are on the same scale) and there are no outliers.
+
+```{r boxPlotS, eval=TRUE}
+boxplot(dataToCluster,horizontal = T, las=2,cex.axis=0.4)
+```
+
+### II. Compute the DISTANCE MATRIX:
+
+**d. Set random seed **
+
+```{r clusterSeed, eval=TRUE}
+set.seed(999)
+```
+
+**e. Decide distance method and compute distance matrix **
+
+```{r cluster_DistanceMatrix, eval=TRUE, message=FALSE}
+library(cluster)
+dataToCluster_DM=daisy(x=dataToCluster, metric = "gower")
+```
+
+## Compute Clusters
+
+### 1. Apply function
+
+**a. Estimate optimal number of clusters**
+The optimal number of clusters is 4.
+
+```{r gapStat, message=FALSE}
+library(factoextra)
+gap_stat = clusGap(dataToCluster, FUN = kmeans, K.max = 24, B = 50)
+
+fviz_gap_stat(gap_stat) + theme_minimal() + ggtitle("Gap Statistic")
+```
+
+```{r clusterComputeALL, eval=TRUE}
+
+NumberOfClusterDesired=4
+
+# Partitioning technique
+res.pam = pam(x=dataToCluster_DM,
+              k = NumberOfClusterDesired,
+              cluster.only = F)
+
+# Hierarchical technique- agglomerative approach
+library(factoextra)
+res.agnes= hcut(dataToCluster_DM, 
+                k = NumberOfClusterDesired,
+                isdiss=TRUE,
+                hc_func='agnes',
+                hc_method = "ward.D2")
+
+# Hierarchical technique- divisive approach
+res.diana= hcut(dataToCluster_DM, 
+                k = NumberOfClusterDesired,
+                isdiss=TRUE,
+                hc_func='diana',
+                hc_method = "ward.D2")
+```
+
+### 2. Clustering results. 
+
+**2.1 Add results to original data frame**
+
+```{r clusterSave_toDF, eval=TRUE}
+rseIndex$pam=as.factor(res.pam$clustering)
+rseIndex$agn=as.factor(res.agnes$cluster)
+rseIndex$dia=as.factor(res.diana$cluster)
+```
+
+**2.2 Verify ordinality in clusters**
+
+Pam Check
+```{r clusPamCheck, echo=FALSE}
+aggregate(data=rseIndex,
+          COMPOSITE_PERCENTILE~pam,
+          FUN=mean)
+```
+
+Agnes Check
+```{r clusAgnCheck, echo=FALSE}
+aggregate(data=rseIndex,
+          COMPOSITE_PERCENTILE~agn,
+          FUN=mean)
+```
+
+Diana Check
+```{r clusDiaCheck, echo=FALSE}
+aggregate(data=rseIndex,
+          COMPOSITE_PERCENTILE~dia,
+          FUN=mean)
+```
+
+### 3. Evaluate Results.
+
+**3.1 Plot silhouettes**
+
+Pam Silhouette
+```{r clust_silhou_PAM, echo=FALSE}
+fviz_silhouette(res.pam)
+```
+
+Agnes Silhouette
+```{r clust_silhou_AGNES, echo=FALSE}
+fviz_silhouette(res.agnes)
+```
+
+Diana Silhouette:
+This is the best clustering method for this set of data because it's the only one without negative values and it does not return any observations that are badly clustered, unlike the Pam and Agnes methods.
+
+```{r clust_silhou_DIANA, echo=FALSE}
+library(factoextra)
+library(ggplot2)
+fviz_silhouette(res.diana)
+```
+
+**3.2 Detecting cases badly clustered**
+
+```{r negativeSILs, eval=TRUE}
+pamEval=data.frame(res.pam$silinfo$widths)
+agnEval=data.frame(res.agnes$silinfo$widths)
+diaEval=data.frame(res.diana$silinfo$widths)
+
+pamPoor=rownames(pamEval[pamEval$sil_width<0,])
+agnPoor=rownames(agnEval[agnEval$sil_width<0,])
+diaPoor=rownames(diaEval[diaEval$sil_width<0,])
+
+diaPoor
+```
+
+## Compare Clustering
+
+**Prepare a bidimensional map using distances**
+
+```{r cmd_Map, eval=TRUE}
+projectedData = cmdscale(dataToCluster_DM, k=2)
+
+# save coordinates to original data frame:
+rseIndex$dim1 = projectedData[,1]
+rseIndex$dim2 = projectedData[,2]
+```
+
+**See the "map"**
+
+```{r plotCmdmap, eval=TRUE}
+base= ggplot(data=rseIndex,
+             aes(x=dim1, y=dim2,
+                 label=GEOID10)) 
+base + geom_text(size=2)
+```
+
+**Plot results from PAM**  
+```{r plotpam, echo=FALSE}
+pamPlot=base + labs(title = "PAM") + geom_point(size=2,
+                                              aes(color=pam),
+                                              show.legend = T)  
+pamPlot
+```
+
+**Plot results from Hierarchical AGNES**  
+```{r plotagn, echo=FALSE}
+agnPlot=base + labs(title = "AGNES") + geom_point(size=2,
+                                              aes(color=agn),
+                                              show.legend = T) 
+agnPlot
+```
+
+**Plot results from Hierarchical DIANA**  
+```{r plotdia, echo=FALSE}
+diaPlot=base + labs(title = "DIANA") + geom_point(size=2,
+                                              aes(color=dia),
+                                              show.legend = T) 
+diaPlot
+```
+
+**Compare visually**
+
+```{r plotcompare, echo=FALSE, message=FALSE}
+library(ggpubr)
+
+ggarrange(pamPlot, agnPlot, diaPlot,ncol = 3,common.legend = T)
+```
+
+**Annotating outliers**
+
+```{r plotpam2, echo=FALSE, message=FALSE}
+library(ggrepel)
+
+LABELpam=ifelse(rseIndex$GEOID10%in%pamPoor,rseIndex$GEOID10,"")
+LABELdia=ifelse(rseIndex$GEOID10%in%diaPoor,rseIndex$GEOID10,"")
+LABELagn=ifelse(rseIndex$GEOID10%in%agnPoor,rseIndex$GEOID10,"")
+
+pamPlot + geom_text_repel(aes(label=LABELpam))
+```
+
+```{r plotdia2, echo=FALSE}
+diaPlot + geom_text_repel(aes(label=LABELdia))
+```
+
+```{r plotagn2, echo=FALSE}
+agnPlot + geom_text_repel(aes(label=LABELagn))
+```
+
+**The Dendogram (for hierarchical approaches)**
+
+```{r clusagnREPORTdendo, echo=FALSE, message=FALSE}
+fviz_dend(res.agnes,k=NumberOfClusterDesired, cex = 0.45, horiz = T,main = "AGNES approach")
+```
+
+```{r clusdiaREPORTdendo, echo=FALSE}
+fviz_dend(res.diana,k=NumberOfClusterDesired, cex = 0.45, horiz = T,main = "DIANA approach")
+```
+
+## Factor Analysis
+
+### Subset the Origina Data Frame
+
+```{r subsetFA, eval=TRUE}
+selection=c("GEOID10","COMPOSITE_PERCENTILE", "RACE_ELL_ORIGINS_PERCENTILE","SOCIOECONOMIC_PERCENTILE","HEALTH_PERCENTILE")
+
+dataForFA=rseIndex[,selection]
+```
+
+### Confirmatory Factor Analysis
+
+```{r checkNames, eval=TRUE}
+names(dataForFA)
+```
+
+```{r predictFit, eval=TRUE, message=FALSE}
+library(lavaan)
+
+model='equity=~RACE_ELL_ORIGINS_PERCENTILE + SOCIOECONOMIC_PERCENTILE + HEALTH_PERCENTILE'
+  
+fit<-cfa(model, data = dataForFA,std.lv=TRUE)
+indexCFA=lavPredict(fit)
+```
+
+```{r indexCFA, eval=TRUE, message=FALSE}
+indexCFA[1:10]
+```
+
+**Force the data to return to "0 to 10"**
+
+```{r indexNorm, eval=TRUE, message=FALSE}
+library(scales)
+indexCFANorm=rescale(as.vector(indexCFA), 
+                     to = c(0, 10))
+indexCFANorm[1:10]
+```
+
+```{r indexCFANorm, eval=TRUE}
+rseIndex$demo_FA=indexCFANorm
+rseIndex$demo_FA
+```
+
+**Compare the new index with the original score**
+
+```{r plotIndex, eval=TRUE}
+base=ggplot(data=rseIndex,
+            aes(x=demo_FA,y=COMPOSITE_PERCENTILE))
+base+geom_point()
+```
+
+**Evaluation measures of our index for equity**
+
+```{r loadings, eval=TRUE}
+evalCFA1=parameterEstimates(fit, standardized =TRUE)
+
+evalCFA1[evalCFA1$op=="=~",c('rhs','std.all','pvalue')]
+```
+
+```{r coeff, eval=TRUE}
+evalCFA2=as.list(fitMeasures(fit))
+```
+
+Chi-Squared
+
+```{r chisq, eval=TRUE}
+evalCFA2[c("chisq", "df", "pvalue")] 
+```
+
+Tucker-Lewis
 
 ```{r, eval=TRUE}
-covidLink="https://raw.githubusercontent.com/oeuyown/computational-thinking/main/deliverable_2/covidcases_bytract.csv"
-covidData=read.csv(covidLink)
+evalCFA2$tli # > 0.90
 ```
 
-```{r}
+RMSEA
+
+```{r RMSEA, eval=TRUE}
+evalCFA2[c( 'rmsea.ci.lower','rmsea','rmsea.ci.upper')] 
+```
+
+**SEM Model**
+
+```{r semPlot, eval=TRUE, message=FALSE}
+library(semPlot)
+semPaths(fit, what='std', nCharNodes=0, sizeMan=12,
+         edge.label.cex=1.5, fade=T,residuals = F)
+```
+
+# Basic Modeling in R
+
+## Prepare Data
+
+Read in data for COVID cases by census tract from King County:
+```{r prepCovid, echo=FALSE}
+covidLink="https://raw.githubusercontent.com/oeuyown/computational-thinking/main/deliverable_2/covidcases_bytract.csv"
+
+# read in data
+covidData=read.csv(covidLink)
+
+# view data
+covidData %>%
+  head()
+```
+
+Check column names for `covidData`
+```{r covidCols}
 covidData %>% 
   colnames()
 ```
 
-```{r, eval=TRUE}
-demoCovid=merge(fromPy,covidData,by.x = "GEOID10",by.y = "ï..Location_Name")
-demoCovid
-```
-```{r}
-demoCovid = na.omit(demoCovid)
-```
+Merge `rseIndex` data with `covidData` by GEOID
+```{r mergeData, eval=TRUE}
+# merge datasets
+demoCovid=merge(rseIndex,covidData,by.x = "GEOID10",by.y = "ï..Location_Name")
 
+# omit NA values
+demoCovid = na.omit(demoCovid)
+
+```
 
 Verifying data structure:
 
@@ -55,34 +394,25 @@ Verifying data structure:
 str(demoCovid,width = 70,strict.width='cut')
 ```
 
-
-
-
-# <font color="red">R for Regression</font>
-
 ## Continuous outcome 
 
-Generally speaking, we use regression when we have a continuous outcome o dependent variable, and a set of independent variables of different type. 
-
-### * __EXPLANATORY APPROACH__
+### Explanatory Approach
+The explanatory approach was chosen because the Rsquared from _postResample_ from the predictive approach is below 0.5.
 
 1. State hypotheses:
 
-Prepare your hypotheses:
 ```{r, eval=TRUE}
-# hypothesis 1: hdi increases as we have more civil liberties:
+# hypothesis 1: The disadvantage score increases as Confirmed Covid Case Rates increase:
 hypo1=formula(COMPOSITE_PERCENTILE ~ Confirmed_Case_Rate)
 
-# hypothesis 2: hdi increases as Civil liberties and Political participation advance:
+# hypothesis 2: The disadvantage score increases as Confirmed Covid Case Rates, Hospitalization Rates, and Death Rates increase:
 
 hypo2=formula(COMPOSITE_PERCENTILE~ Confirmed_Case_Rate + Hospitalization_Rate + Death_Rate)
 ```
 
-
 2. Compute regression models:
 
 ```{r, eval=TRUE}
-#
 # results
 gauss1=glm(hypo1,
            data = demoCovid,
@@ -95,13 +425,15 @@ gauss2=glm(hypo2,
 
 3. See results:
 
-* First Hypothesis
+First Hypothesis:
+For every one unit increase in the `Confirmed_Case_Rate`, there is a 0.00006367 unit increase in the `COMPOSITE_PERCENTILE` (disadvantage scale), which is statistically significant.
 
 ```{r, eval=TRUE}
 summary(gauss1)
 ```
 
-* Second Hypothesis
+Second Hypothesis:
+Holding `Hospitalization_Rate` and `Death_Rate` constant, for every one unit increase in the `Confirmed_Case_Rate`, there is a 0.00004536 increase in the `COMPOSITIE_PERCENTILE` (disadvantage score), which is statistically significant. This rate is the only statistically significant variable. However, the `Hospitalization_Rate` is close to being statistically significant at the 10% confidence interval.
 ```{r, eval=TRUE}
 summary(gauss2)
 ```
@@ -112,20 +444,19 @@ summary(gauss2)
 anova(gauss1,gauss2,test="Chisq")
 ```
 
-Model for the second hypothesis is chosen. You can get the RSquared if needed:
+RSquared for second hypothesis
 
-```{r, eval=TRUE}
+```{r, eval=TRUE, message=FALSE}
 library(rsq)
 rsq(gauss2,adj=T)
 ```
 
 5. Verify the situation of chosen model:
 
-5.1. Linearity between dependent variable and predictors is assumed, then these dots should follow a linear and horizontal trend:
+5.1. The linear relationships does not hold that well:
 ```{r, eval=TRUE}
 plot(gauss2,1)
 ```
-The linear relationship does not hold that well.
 
 5.2. Normality of residuals is assumed:
 
@@ -135,12 +466,12 @@ plot(gauss2,2)
 ```
 
 Mathematical exploration:
+The data is normal because the p-value > 0.05
 ```{r, eval=TRUE}
-# The data is normal if the p-value is above 0.05
 shapiro.test(gauss2$residuals)
 ```
 
-5.3. Homoscedasticity is assumed, so you need to check if residuals are spread equally along the ranges of predictors:
+5.3. Homoscedasticity
 
 Visual exploration:
 
@@ -148,22 +479,20 @@ Visual exploration:
 plot(gauss2, 3)
 ```
 
-Mathematical exploration:
-```{r, eval=TRUE}
+Mathematical exploration: p-value is <0.05 so I cannot assume homoscedasticity
+```{r, eval=TRUE, message=FALSE}
 library(lmtest)
-#pvalue<0.05 you cannot assume Homoscedasticity
 bptest(gauss2) 
 ```
 
-5.4. We assume that there is no colinearity, that is, that the predictors are not correlated.
+5.4. There is no collinearity because the VIFs are lower than 5.
 
-
-```{r, eval=TRUE}
+```{r, eval=TRUE, message=FALSE}
 library(car)
 vif(gauss2) # lower than 5 is desirable
 ```
 
-5.5. Analize the effect of atypical values. Determine if outliers (points that are far from the rest, but still in the trend) or high-leverage points (far from the trend but close to the rest) are influential:
+5.5. Analyzing the effect of atypical values
 
 Visual exploration:
 ```{r, eval=TRUE}
@@ -177,228 +506,11 @@ gaussInf[gaussInf$cook.d,]
 ```
 
 
-6. Finally, a nice summary plot of your work:
+6. Summary plot
 
-```{r, eval=TRUE}
+```{r, eval=TRUE, message=FALSE}
 library(sjPlot)
 
 plot_models(gauss2,vline.color = "grey")
 ```
-
-
-* __PREDICTIVE APPROACH__
-
-
-1. Split the data set:
-
-```{r, eval=TRUE}
-library(caret)
-
-set.seed(123)
-
-selection = createDataPartition(demoCovid$COMPOSITE_PERCENTILE,
-                                p = 0.75,
-                                list = FALSE)
-#
-trainGauss = demoCovid[ selection, ]
-
-#
-testGauss  = demoCovid[-selection, ]
-```
-
-2. Regress with train data
-
-Let's use cross validation, applying the regression to five samples from the training data set:
-```{r, eval=TRUE}
-ctrl = trainControl(method = 'cv',number = 5)
-
-gauss2CV = train(hypo2,
-                 data = trainGauss, 
-                 method = 'glm',
-                 trControl = ctrl)
-
-gauss2CV
-
-```
-Just checking the Rsquared above tells us that it is not a good model for predicting.
-
-3. Evaluate performance
-
-
-```{r, eval=TRUE}
-
-predictedVal<-predict(gauss2CV,testGauss)
-
-postResample(obs = testGauss$hdi,
-             pred=predictedVal)
-```
-From the information above, you do noy a better prediction: the Rsquared from _postResample_ is below 0.5.
-
-
-## Binary outcome 
-
-In this situation you have binary dependent variable, which we do not currently have:
-
-```{r, eval=TRUE}
-demoidh$HDIdico=ifelse(demoidh$hdi>median(demoidh$hdi,
-                                       na.rm = T),
-                     1,0)
-```
-
-Now we have it. 
-
-### * __EXPLANATORY APPROACH__
-
-1. State hypothesis:
-
-Let's use the same ones:
-
-```{r, eval=TRUE}
-hypoDico1=formula(HDIdico~ Civilliberties)
-hypoDico2=formula(HDIdico~ Civilliberties + Politicalparticipation)
-```
-
-2. Reformat
-
-```{r, eval=TRUE}
-demoidh$HDIdico=factor(demoidh$HDIdico)
-```
-
-
-6. Compute regression models:
-
-```{r, eval=TRUE}
-Logi1=glm(hypoDico1,data = demoidh,
-          family = "binomial")
-Logi2=glm(hypoDico2,data = demoidh,
-          family = "binomial")
-```
-
-7. See results:
-
-* First Hypothesis:
-```{r, eval=TRUE}
-summary(Logi1)
-```
-* Second Hypothesis:
-
-```{r, eval=TRUE}
-summary(Logi2)
-```
-
-8. Search for better model:
-```{r, eval=TRUE}
-lrtest(Logi1,Logi2)
-```
-
-You do not have much of an improvement in the second case, but I will keep it.
-
-9. Verify the situation of chosen model
-
-9.1. Linearity assumption (Box-Tidwell test)
-
-```{r, eval=TRUE}
-DataRegLogis=demoidh
-DataRegLogis$civilTEST=demoidh$Civilliberties*log(demoidh$Civilliberties)
-DataRegLogis$particTEST=demoidh$Politicalparticipation*log(demoidh$Politicalparticipation)
-
-DicoTest=formula(HDIdico~ Civilliberties + Politicalparticipation + civilTEST + particTEST)
-
-summary(glm(DicoTest,data=DataRegLogis,family = binomial))
-
-```
-
-
-
-9.2. We assume that there is no colinearity, that is, that the predictors are not correlated.
-
-```{r, eval=TRUE}
-vif(Logi2)
-```
-
-9.3 Analize the effect of atypical values. Determine if outliers (points that are far from the rest, but still in the trend) or high-leverage points (far from the trend but close to the rest) are influential:
-
-Visual exploration:
-
-```{r, eval=TRUE}
-plot(Logi2,5)
-```
-
-10. Finally, a nice summary plot of your work by computing the marginal effects:
-
-```{r, eval=TRUE}
-library(margins)
-(modelChosen = margins(Logi2))
-```
-
-```{r, eval=TRUE}
-(margins=summary(modelChosen))
-```
-
-
-```{r, eval=TRUE}
-
-base= ggplot(margins,aes(x=factor, y=AME)) + geom_point()
-plot2 = base + theme(axis.text.x = element_text(angle = 80,
-                                              size = 6,
-                                              hjust = 1))
-plot2    
-```
-```{r, eval=TRUE}
-plot2 +  geom_errorbar(aes(ymin=lower, ymax=upper))
-```
-
-### * __PREDICTIVE APPROACH__
-
-
-1. Split the data set:
-```{r, eval=TRUE}
-set.seed(123)
-
-selection = createDataPartition(demoidh$HDIdico,
-                                p = 0.75,
-                                list = FALSE)
-trainLogi = demoidh[selection, ]
-testLogi  = demoidh[-selection, ]
-```
-
-2. Regress with train data
-
-Let’s use cross validation, applying the regression to five samples from the training data set:
-```{r, eval=TRUE}
-set.seed(123)
-ctrl = trainControl(method = 'cv',number = 5)
-
-Logis2CV = train(hypoDico2,
-                 data = trainLogi, 
-                 method = 'glm',
-                 family="binomial",
-                 trControl = ctrl)
-```
-
-3. See results:
-
-```{r, eval=TRUE}
-Logis2CV
-```
-
-3. Evaluate performance
-
-3.1 Get predictions on test data
-```{r, eval=TRUE}
-
-predictions = predict(Logis2CV,
-                      newdata=testLogi,
-                      type='raw')
-```
-
-3.2 Assess performance 
-```{r, eval=TRUE}
-confusionMatrix(data=predictions,
-                reference=testLogi$HDIdico,
-                positive = "1")
-```
-
-Here is some help for you to interpret the [result](https://docs.google.com/presentation/d/e/2PACX-1vRyFvA5U2HXC3CGBeKEr209_KLjjdeo8FoKT6BxMsjLNOJwx7YDUmGEpDq1pzfGO7Zizuk5rogUNPgj/pub?start=false&loop=false&delayms=3000).
-
 
